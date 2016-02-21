@@ -40,11 +40,6 @@ class GameObject(pygame.sprite.Sprite):
 		self.y = y
 		self.screen_rect = Rect(floor(x) * self.tile_size, floor(y) * self.tile_size, self.tile_size, self.tile_size )
 		# Переменная, хранящая размеры и координаты отрисовки персонажа на экране
-		# !!! Вызвать здесь draw?
-
-	def game_tick(self):
-		self.tick += 1
-	# Функция вызывается с каждым тиком игровых часов
 
 	def draw(self, scr):
 		scr.blit(self.image, (self.screen_rect.x, self.screen_rect.y))
@@ -54,10 +49,10 @@ class Ghost(GameObject):
 	def __init__(self, x, y, factor_tile):
 		GameObject.__init__(self, './resources/ghost.png', x, y, factor_tile)
 		self.direction = 0 # 0 - неподвижен, 1 - вправо, 2 - вниз, 3 - влево, 4 - вверх
-		self.velocity = 4.0 / 10.0 # Скорость в клетках / игровой тик
+		self.velocity = 1 / 2 # Скорость в клетках / игровой тик
 
 	def game_tick(self):
-		super(Ghost, self).game_tick() # !!! Либо изменить tick напрямую, либо убрать этот атрибут
+		self.tick += 1
 		# Каждые 20 тиков случайно выбираем направление движения
 		# Вариант self.direction == 0 соотвествует моменту первого вызова метода game_tick() у обьекта
 		if self.tick % 20 == 0 or self.direction == 0:
@@ -92,10 +87,10 @@ class Pacman(GameObject):
 	def __init__(self, x, y, factor_tile):
 		GameObject.__init__(self, './resources/pacman.png', x, y, factor_tile)
 		self.direction = 0 # 0 - неподвижен, 1 - вправо, 2 - вниз, 3 - влево, 4 - вверх
-		self.velocity = 4.0 / 10.0 # Скорость в клетках / игровой тик
+		self.velocity = 1 / 1 # Скорость в клетках / игровой тик
 
 	def game_tick(self):
-		super(Pacman, self).game_tick() # !!! Либо изменить tick напрямую, либо убрать этот атрибут
+		self.tick += 1
 		if self.direction == 1:
 			self.x += self.velocity
 			if self.x >= map_size-1:
@@ -142,7 +137,8 @@ if __name__ == '__main__': # Если этот файл импортируетс
 
 	background = pygame.image.load("./resources/background.png") # Загружаем изображение
 	screen = pygame.display.get_surface() # Получаем объект Surface для рисования в окне
-	# !!! Засунуть это в init_window()?
+	# Засовывать это в init_window() нельзя: screen требуется для draw персонажей,
+	# и сделать screen глобальным параметром, отделив тем самым от pygame.init(), тоже невозможно
 
 # В бесконечном цикле принимаем и обрабатываем сообщения
 	while 1:
@@ -150,7 +146,7 @@ if __name__ == '__main__': # Если этот файл импортируетс
 		pygame.time.delay(100)
 		ghost.game_tick()
 		pacman.game_tick()
-		draw_background(screen, background) # !!! Зачем отрисовывать фон каждый раз?
+		draw_background(screen, background) # Фон перерисовывается поверх устаревших положений персонажей
 		pacman.draw(screen)
 		ghost.draw(screen)
 		pygame.display.update()
