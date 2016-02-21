@@ -4,6 +4,8 @@ from pygame.locals import *
 from math import floor
 import random
 
+tile_size = 32 # Размер клетки игрового поля в пикселях (предполагается, что клетки квадратные)
+map_size = 16 # Размер карты игрового поля в клетках (предполагается, что карта квадратная)
 
 def init_window():
 	pygame.init() # Инициализируем библиотеку - чтоа?
@@ -25,14 +27,12 @@ def draw_background(scr, img=None):
 class GameObject(pygame.sprite.Sprite):
 	# img - путь к файлу с изображением персонажа
 	# x, y - координаты персонажа на игровом поле
-	# tile_size - размер клетки игрового поля в пикселях (предполагается, что клетки квадратные)
-	# map_size - размер карты игрового поля в клетках (предполагается, что карта квадратная)
-	def __init__(self, img, x, y, tile_size, map_size):
+	# factor_tile - целая часть показывает, сколько тайлов занимает персонаж
+	def __init__(self, img, x, y, factor_tile):
 		pygame.sprite.Sprite.__init__(self)
 		self.image = pygame.image.load(img) # Загружаем изображение персонажа
 		self.tick = 0 # Время, прошедшее с момента создания персонажа, в условных единицах
-		self.tile_size = tile_size
-		self.map_size = map_size
+		self.tile_size = tile_size * floor(factor_tile)
 		self.set_coord(x, y)
 
 	def set_coord(self, x, y):
@@ -51,8 +51,8 @@ class GameObject(pygame.sprite.Sprite):
 
 
 class Ghost(GameObject):
-	def __init__(self, x, y, tile_size, map_size):
-		GameObject.__init__(self, './resources/ghost.png', x, y, tile_size, map_size)
+	def __init__(self, x, y, factor_tile):
+		GameObject.__init__(self, './resources/ghost.png', x, y, factor_tile)
 		self.direction = 0 # 0 - неподвижен, 1 - вправо, 2 - вниз, 3 - влево, 4 - вверх
 		self.velocity = 4.0 / 10.0 # Скорость в клетках / игровой тик
 
@@ -66,13 +66,13 @@ class Ghost(GameObject):
 	# Далее случайно меняем напрвление движения
 		if self.direction == 1:
 			self.x += self.velocity
-			if self.x >= self.map_size-1:
-				self.x = self.map_size-1
+			if self.x >= map_size-1:
+				self.x = map_size-1
 				self.direction = random.randint(1, 4)
 		elif self.direction == 2:
 			self.y += self.velocity
-			if self.y >= self.map_size-1:
-				self.y = self.map_size-1
+			if self.y >= map_size-1:
+				self.y = map_size-1
 				self.direction = random.randint(1, 4)
 		elif self.direction == 3:
 			self.x -= self.velocity
@@ -89,8 +89,8 @@ class Ghost(GameObject):
 
 
 class Pacman(GameObject):
-	def __init__(self, x, y, tile_size, map_size):
-		GameObject.__init__(self, './resources/pacman.png', x, y, tile_size, map_size)
+	def __init__(self, x, y, factor_tile):
+		GameObject.__init__(self, './resources/pacman.png', x, y, factor_tile)
 		self.direction = 0 # 0 - неподвижен, 1 - вправо, 2 - вниз, 3 - влево, 4 - вверх
 		self.velocity = 4.0 / 10.0 # Скорость в клетках / игровой тик
 
@@ -98,12 +98,12 @@ class Pacman(GameObject):
 		super(Pacman, self).game_tick() # !!! Либо изменить tick напрямую, либо убрать этот атрибут
 		if self.direction == 1:
 			self.x += self.velocity
-			if self.x >= self.map_size-1:
-				self.x = self.map_size-1
+			if self.x >= map_size-1:
+				self.x = map_size-1
 		elif self.direction == 2:
 			self.y += self.velocity
-			if self.y >= self.map_size-1:
-				self.y = self.map_size-1
+			if self.y >= map_size-1:
+				self.y = map_size-1
 		elif self.direction == 3:
 			self.x -= self.velocity
 			if self.x <= 0:
@@ -137,13 +137,8 @@ def process_events(events, packman):
 
 if __name__ == '__main__': # Если этот файл импортируется в другой, этот __name__ равен имени импортируемого файла без пути и расширения ('pacman'). Если файл запускается непосредственно, __name__  принимает значенние __main__
 	init_window() # Инициализируем окно приложения
-
-	tile_size = 32
-	map_size = 16
-	# !!! Объявить глобальными переменными и избавиться от избыточного описания объектов?
-
-	ghost = Ghost(0, 0, tile_size, map_size)
-	pacman = Pacman(5, 5, tile_size, map_size)
+	ghost = Ghost(0, 0, 1)
+	pacman = Pacman(5, 5, 1)
 
 	background = pygame.image.load("./resources/background.png") # Загружаем изображение
 	screen = pygame.display.get_surface() # Получаем объект Surface для рисования в окне
