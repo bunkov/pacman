@@ -3,6 +3,7 @@ import pygame
 from pygame.locals import *
 from math import floor
 import random
+import os
 
 tile_size = 32 # Размер клетки игрового поля в пикселях (предполагается, что клетки квадратные)
 map_size = 16 # Размер карты игрового поля в клетках (предполагается, что карта квадратная)
@@ -38,15 +39,52 @@ class GameObject(pygame.sprite.Sprite):
 	def set_coord(self, x, y):
 		self.x = x
 		self.y = y
-		self.screen_rect = Rect(floor(x) * self.tile_size, floor(y) * self.tile_size, self.tile_size, self.tile_size )
+		#self.screen_rect = Rect(floor(x) * self.tile_size, floor(y) * self.tile_size, self.tile_size, self.tile_size )
 		# Переменная, хранящая размеры и координаты отрисовки персонажа на экране
+		# Необходимость сомнительна
 
 	def draw(self, scr):
-		scr.blit(self.image, (self.screen_rect.x, self.screen_rect.y))
+		scr.blit(self.image, (floor(self.x) * self.tile_size, floor(self.y) * self.tile_size)) #(self.screen_rect.x, self.screen_rect.y))
+
+	def eraser(self, Map): # Стирает персонажа на карте
+		if self == pacman:
+			symbol = 6
+		if symbol in Map.map[floor(self.y)][floor(self.x)]: # Ячейка x, y, в которой был персонаж
+			Map.map[floor(self.y)][floor(self.x)][Map.map[floor(self.y)][floor(self.x)].index(symbol)] = 0 # Сменить его символ на пустой
+
+	def pencil(self, Map): # Рисует персонажа на карте
+		if self == pacman:
+			symbol = 6
+		if 0 in Map.map[floor(self.y)][floor(self.x)]: # Ячейка x, y, в которую пришел персонаж
+			Map.map[floor(self.y)][floor(self.x)][Map.map[floor(self.y)][floor(self.x)].index(0)] = symbol # Сменить пустой символ на символ персонажа
+		else: # Если в ячейке еще кто-то, а пустых мест нет
+			Map.map[floor(self.y)][floor(self.x)].append(symbol) # Расширяем список этим персонажем
+		'''if '(;,;)' in Map.map[floor(ghost.x)][floor(ghost.y)]:
+			Map.map[floor(ghost.x)][floor(ghost.y)][Map.map[floor(ghost.x)][floor(ghost.y)].index('(;,;)')] = None
+		ghost.game_tick()
+		if None in Map.map[floor(ghost.x)][floor(ghost.y)]:
+			Map.map[floor(ghost.x)][floor(ghost.y)][Map.map[floor(ghost.x)][floor(ghost.y)].index(None)] = '(;,;)'
+		else:
+			Map.map[floor(ghost.x)][floor(ghost.y)].append('(;,;)')'''
+
+class Map:
+        def __init__(self):
+                self.map = [ [[0] for i in range(map_size)] for i in range(map_size) ]
+
+        # Функция возвращает список обьектов в данной точке карты
+        def get(self, x, y):
+                return self.map[x][y]
+
+
+class Wall(GameObject):
+	def __init__(self, x, y, factor_tile = 1):
+		GameObject.__init__(self, './resources/wall.png', x, y, factor_tile)
+	def game_tick(self):
+		self.tick += 1
 
 
 class Ghost(GameObject):
-	def __init__(self, x, y, factor_tile):
+	def __init__(self, x, y, factor_tile = 1):
 		GameObject.__init__(self, './resources/ghost.png', x, y, factor_tile)
 		self.direction = 0 # 0 - неподвижен, 1 - вправо, 2 - вниз, 3 - влево, 4 - вверх
 		self.velocity = 1 / 2 # Скорость в клетках / игровой тик
@@ -84,7 +122,7 @@ class Ghost(GameObject):
 
 
 class Pacman(GameObject):
-	def __init__(self, x, y, factor_tile):
+	def __init__(self, x, y, factor_tile = 1):
 		GameObject.__init__(self, './resources/pacman.png', x, y, factor_tile)
 		self.direction = 0 # 0 - неподвижен, 1 - вправо, 2 - вниз, 3 - влево, 4 - вверх
 		self.velocity = 1 / 1 # Скорость в клетках / игровой тик
@@ -132,20 +170,30 @@ def process_events(events, packman):
 
 if __name__ == '__main__': # Если этот файл импортируется в другой, этот __name__ равен имени импортируемого файла без пути и расширения ('pacman'). Если файл запускается непосредственно, __name__  принимает значенние __main__
 	init_window() # Инициализируем окно приложения
-	ghost = Ghost(0, 0, 1)
-	pacman = Pacman(5, 5, 1)
+	ghost = Ghost(15, 15)
+	pacman = Pacman(0, 0)
 
 	background = pygame.image.load("./resources/background.png") # Загружаем изображение
 	screen = pygame.display.get_surface() # Получаем объект Surface для рисования в окне
 	# Засовывать это в init_window() нельзя: screen требуется для draw персонажей,
 	# и сделать screen глобальным параметром, отделив тем самым от pygame.init(), тоже невозможно
 
+	Map = Map()
+
 # В бесконечном цикле принимаем и обрабатываем сообщения
 	while 1:
 		process_events(pygame.event.get(), pacman)
 		pygame.time.delay(100)
-		ghost.game_tick()
+		pacman.eraser(Map)
 		pacman.game_tick()
+		pacman.pencil(Map)
+		os.system('cls') # Очистить консоль
+		for i in range(map_size):
+			for j in range(map_size):
+				print( Map.get(i,j), end = ' ')
+			print()
+		print(floor(pacman.x),floor(pacman.y))
+		
 		draw_background(screen, background) # Фон перерисовывается поверх устаревших положений персонажей
 		pacman.draw(screen)
 		ghost.draw(screen)
