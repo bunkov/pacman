@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+from __future__ import print_function
+# костыли для второго питона
+
 import sys
 import pygame
 from pygame.locals import *
@@ -5,8 +9,10 @@ from math import floor
 import random
 import os
 
+
 tile_size = 32 # Размер клетки игрового поля в пикселях (предполагается, что клетки квадратные)
 map_size = 16 # Размер карты игрового поля в клетках (предполагается, что карта квадратная)
+Objects = []
 
 def init_window():
 	pygame.init() # Инициализируем библиотеку - чтоа?
@@ -29,12 +35,15 @@ class GameObject(pygame.sprite.Sprite):
 	# img - путь к файлу с изображением персонажа
 	# x, y - координаты персонажа на игровом поле
 	# factor_tile - целая часть показывает, сколько тайлов занимает персонаж
-	def __init__(self, img, x, y, factor_tile):
+	# symbol - символ, которым будет отображаться объект на карте
+	def __init__(self, img, x, y, factor_tile, symbol):
 		pygame.sprite.Sprite.__init__(self)
 		self.image = pygame.image.load(img) # Загружаем изображение персонажа
 		self.tick = 0 # Время, прошедшее с момента создания персонажа, в условных единицах
 		self.tile_size = tile_size * floor(factor_tile)
+		self.symbol = symbol
 		self.set_coord(x, y)
+		Objects.append(self)
 
 	def set_coord(self, x, y):
 		self.x = x
@@ -46,26 +55,27 @@ class GameObject(pygame.sprite.Sprite):
 	def draw(self, scr):
 		scr.blit(self.image, (floor(self.x) * self.tile_size, floor(self.y) * self.tile_size)) #(self.screen_rect.x, self.screen_rect.y))
 
-	def eraser(self, Map): # Стирает персонажа на карте
-		if self == pacman:
-			symbol = 6
-		if symbol in Map.map[floor(self.y)][floor(self.x)]: # Ячейка x, y, в которой был персонаж
-			Map.map[floor(self.y)][floor(self.x)][Map.map[floor(self.y)][floor(self.x)].index(symbol)] = 0 # Сменить его символ на пустой
-
-	def pencil(self, Map): # Рисует персонажа на карте
-		if self == pacman:
-			symbol = 6
-		if 0 in Map.map[floor(self.y)][floor(self.x)]: # Ячейка x, y, в которую пришел персонаж
-			Map.map[floor(self.y)][floor(self.x)][Map.map[floor(self.y)][floor(self.x)].index(0)] = symbol # Сменить пустой символ на символ персонажа
-		else: # Если в ячейке еще кто-то, а пустых мест нет
-			Map.map[floor(self.y)][floor(self.x)].append(symbol) # Расширяем список этим персонажем
-		'''if '(;,;)' in Map.map[floor(ghost.x)][floor(ghost.y)]:
-			Map.map[floor(ghost.x)][floor(ghost.y)][Map.map[floor(ghost.x)][floor(ghost.y)].index('(;,;)')] = None
-		ghost.game_tick()
-		if None in Map.map[floor(ghost.x)][floor(ghost.y)]:
-			Map.map[floor(ghost.x)][floor(ghost.y)][Map.map[floor(ghost.x)][floor(ghost.y)].index(None)] = '(;,;)'
+	def eraser(self, Map): # Стирает объект на карте
+		if type(self) == Wall: # Стена статична, не отрисовывать ее на карте каждый раз
+			pass
 		else:
-			Map.map[floor(ghost.x)][floor(ghost.y)].append('(;,;)')'''
+			#for i in range()
+			if self.symbol in Map.get(int(floor(self.x)), int(floor(self.y))): # Ячейка x, y, в которой был персонаж. int() - костыль для второго питона
+				Map.get(int(floor(self.x)), int(floor(self.y)))[Map.get(int(floor(self.x)), int(floor(self.y))).index(self.symbol)] = 0 # Сменить его символ на пустой
+
+	def pencil(self, Map): # Рисует объект на карте
+		if type(self) == Wall:
+			if not self.painted:
+				Map.get(int(floor(self.x)), int(floor(self.y)))[Map.get(int(floor(self.x)), int(floor(self.y))).index(0)] = self.symbol
+				self.painted = True # Стена отрисована
+			else:
+				pass
+		else:
+			if 0 in Map.get(int(floor(self.x)), int(floor(self.y))): # Ячейка x, y, в которую пришел персонаж
+				Map.get(int(floor(self.x)), int(floor(self.y)))[Map.get(int(floor(self.x)), int(floor(self.y))).index(0)] = self.symbol # Сменить пустой символ на символ персонажа
+			else: # Если в ячейке еще кто-то, а пустых мест нет
+				Map.map[int(floor(self.y))][int(floor(self.x))].append(self.symbol) # Расширяем список этим персонажем
+
 
 class Map:
         def __init__(self):
@@ -74,26 +84,32 @@ class Map:
         # Функция возвращает список обьектов в данной точке карты
         def get(self, x, y):
                 return self.map[x][y]
+	def collisions(self):
+		for y in range(map_size):
+			for x in range(map_size):
+				if 1 and 6 in self.get(x,y):
+					background = pygame.image.load("./resources/game_over.jpeg")
 
 
 class Wall(GameObject):
-	def __init__(self, x, y, factor_tile = 1):
-		GameObject.__init__(self, './resources/wall.png', x, y, factor_tile)
+	def __init__(self, x, y, factor_tile = 1, symbol = 8):
+		GameObject.__init__(self, './resources/wall.png', x, y, factor_tile, symbol)
+		self.painted = False # Отрисована ли стена на карте
 	def game_tick(self):
 		self.tick += 1
 
 
 class Ghost(GameObject):
-	def __init__(self, x, y, factor_tile = 1):
-		GameObject.__init__(self, './resources/ghost.png', x, y, factor_tile)
+	def __init__(self, x, y, factor_tile = 1, symbol = 1):
+		GameObject.__init__(self, './resources/ghost.png', x, y, factor_tile, symbol)
 		self.direction = 0 # 0 - неподвижен, 1 - вправо, 2 - вниз, 3 - влево, 4 - вверх
-		self.velocity = 1 / 2 # Скорость в клетках / игровой тик
+		self.velocity = 1.0 / 2.0 # Скорость в клетках / игровой тик. Необходимо указывать дробную часть, иначе Питон интерпертирует это как целочисленное деление
 
 	def game_tick(self):
 		self.tick += 1
 		# Каждые 20 тиков случайно выбираем направление движения
 		# Вариант self.direction == 0 соотвествует моменту первого вызова метода game_tick() у обьекта
-		if self.tick % 20 == 0 or self.direction == 0:
+		if self.tick % 3 == 0 or self.direction == 0:
 			self.direction = random.randint(1, 4)
 	# Для каждого направления движения увеличиваем координату до тех пор, пока не достигнем стены
 	# Далее случайно меняем напрвление движения
@@ -122,8 +138,8 @@ class Ghost(GameObject):
 
 
 class Pacman(GameObject):
-	def __init__(self, x, y, factor_tile = 1):
-		GameObject.__init__(self, './resources/pacman.png', x, y, factor_tile)
+	def __init__(self, x, y, factor_tile = 1, symbol = 6):
+		GameObject.__init__(self, './resources/pacman.png', x, y, factor_tile, symbol)
 		self.direction = 0 # 0 - неподвижен, 1 - вправо, 2 - вниз, 3 - влево, 4 - вверх
 		self.velocity = 1 / 1 # Скорость в клетках / игровой тик
 
@@ -170,8 +186,9 @@ def process_events(events, packman):
 
 if __name__ == '__main__': # Если этот файл импортируется в другой, этот __name__ равен имени импортируемого файла без пути и расширения ('pacman'). Если файл запускается непосредственно, __name__  принимает значенние __main__
 	init_window() # Инициализируем окно приложения
-	ghost = Ghost(15, 15)
+	ghost = Ghost(10, 15)
 	pacman = Pacman(0, 0)
+	wall = Wall(8, 8)
 
 	background = pygame.image.load("./resources/background.png") # Загружаем изображение
 	screen = pygame.display.get_surface() # Получаем объект Surface для рисования в окне
@@ -184,18 +201,18 @@ if __name__ == '__main__': # Если этот файл импортируетс
 	while 1:
 		process_events(pygame.event.get(), pacman)
 		pygame.time.delay(100)
-		pacman.eraser(Map)
-		pacman.game_tick()
-		pacman.pencil(Map)
-		os.system('cls') # Очистить консоль
-		for i in range(map_size):
-			for j in range(map_size):
-				print( Map.get(i,j), end = ' ')
-			print()
-		print(floor(pacman.x),floor(pacman.y))
-		
-		draw_background(screen, background) # Фон перерисовывается поверх устаревших положений персонажей
-		pacman.draw(screen)
-		ghost.draw(screen)
+		draw_background(screen, background) # Фон перерисовывается поверх устаревших положений персонажей		
+		for obj in Objects:
+			obj.eraser(Map)
+			obj.game_tick()
+			obj.pencil(Map)
+			obj.draw(screen)
+		#Map.collisions()
 		pygame.display.update()
+		os.system('cls') # Очистить консоль
+		for y in range(map_size):
+			for x in range(map_size):
+				print(Map.get(x,y), end = ' ')
+			print()
+		print(int(floor(pacman.x)),int(floor(pacman.y)))
 
