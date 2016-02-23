@@ -12,10 +12,11 @@ import os
 
 tile_size = 32 # Размер клетки игрового поля в пикселях (предполагается, что клетки квадратные)
 map_size = 16 # Размер карты игрового поля в клетках (предполагается, что карта квадратная)
-Objects = []
-Ghosts = []
+OBJECTS = []
+CHARACTERS = []
 ITS_TEST = False
 N = 0 # Кол-во запусков тестового режима
+empty_symbol = ' ' # Символ, которым заполняется карта в пустых ячейках
 
 def init_window():
 	pygame.init() # Инициализируем библиотеку - чтоа?
@@ -23,7 +24,7 @@ def init_window():
 	pygame.display.set_caption('Pacman by Alex') # Задаем загаловок окна
 
 
-def draw_background(scr, img=None):
+def draw_background(scr, img = None):
 # scr - обьект класса Surface для рисования в окне приложения
 # img - фоновая картинка. Если отсутствует, осуществляется заливка серым фоном
 	if img:
@@ -46,7 +47,7 @@ class GameObject(pygame.sprite.Sprite):
 		self.tile_size = tile_size * floor(factor_tile)
 		self.symbol = symbol
 		self.set_coord(x, y)
-		Objects.append(self)
+		OBJECTS.append(self)
 
 	def set_coord(self, x, y):
 		self.x = x
@@ -61,50 +62,62 @@ class GameObject(pygame.sprite.Sprite):
 	def eraser(self, Map): # Стирает объект на карте
 		if type(self) == Wall: # Стена статична, не отрисовывать ее на карте каждый раз
 			pass
+
 		else:
 			
 			int_x = int(floor(self.x)) # int() - костыль для второго питона
 			int_y = int(floor(self.y))
-			
-			if self.symbol in Map.get(int_x, int_y): # Ячейка x, y, в которой был персонаж
-				Map.get(int_x, int_y)[Map.get(int_x, int_y).index(self.symbol)] = 0 # Сменить его символ на пустой
+			tile = Map.get(int_x, int_y) # Ячейка x, y, в которой был персонаж
+
+			tile.remove(self.symbol)
 
 	def pencil(self, Map): # Рисует объект на карте
 		
 		int_x = int(floor(self.x)) # int() - костыль для второго питона
 		int_y = int(floor(self.y))
+		tile = Map.get(int_x, int_y) # Ячейка x, y, в которую пришел персонаж
 		
 		if type(self) == Wall:
-			if not self.painted:
-				Map.get(int_x, int_y)[Map.get(int_x, int_y).index(0)] = self.symbol
-				self.painted = True # Стена отрисована
-			else:
-				pass
+			pass
 		
 		else:
-			if 0 in Map.get(int_x, int_y): # Ячейка x, y, в которую пришел персонаж
-				Map.get(int_x, int_y)[Map.get(int_x, int_y).index(0)] = self.symbol # Сменить пустой символ на символ персонажа
-			else: # Если в ячейке еще кто-то, а пустых мест нет
-				Map.map[int_x][int_y].append(self.symbol) # Расширяем список этим персонажем
+			if empty_symbol in tile:
+				tile[0] = self.symbol # Сменить пустой символ на символ персонажа
+			else:
+				tile.append(self.symbol) # Расширяем список этим персонажем
 
 
 class Map:
-	def __init__(self):
-		self.map = [ [[0] for i in range(map_size)] for i in range(map_size) ]
+	def __init__(self, map_file = None):
+		self.map = [ [[] for y in range(map_size)] for x in range(map_size) ]
+		if map_file:
+			strings = map_file.readlines()
+			for string in strings:
+				string.rstrip()
+			for y in range(map_size):
+				for x in range(map_size):
+					self.map[x][y].append(strings[y][x])
 
 	# Функция возвращает список обьектов в данной точке карты
 	def get(self, x, y):
 		return self.map[x][y]
-
-	def collisions(self):
+	
+	# Обрабатывает столкновения
+	'''Увы, такой подход допускает в редких случаях прохождение двигающихся объектов сквозь друг друга, 
+	но избегает гамовера на границе тайлов (когда призрак и пэкмен стоят не в одной ячейке)'''
+	def collisions(self, obj_1, obj_2):
 		for y in range(map_size):
 			for x in range(map_size):
-				if 1 and 6 in self.get(x,y):
-					background = pygame.image.load("./resources/game_over.jpeg")
+				tile = self.get(x,y)
+				if obj_1.symbol in tile:
+					if obj_2.symbol in tile: # Конструкция obj_1.symbol and obj_2.symbol не работает
+						
+						if type(obj_1) == Pacman and type(obj_2) == Ghost or type(obj_2) == Pacman and type(obj_1) == Ghost:
+							return True
 
 
 class Wall(GameObject):
-	def __init__(self, x, y, factor_tile = 1, symbol = 8):
+	def __init__(self, x, y, factor_tile = 1, symbol = '#'):
 		GameObject.__init__(self, './resources/wall.png', x, y, factor_tile, symbol)
 		self.painted = False # Отрисована ли стена на карте
 
@@ -113,11 +126,11 @@ class Wall(GameObject):
 
 
 class Ghost(GameObject):
-	def __init__(self, x, y, factor_tile = 1, symbol = 1):
+	def __init__(self, x, y, factor_tile = 1, symbol = 'G'):
 		GameObject.__init__(self, './resources/ghost.png', x, y, factor_tile, symbol)
 		self.direction = 0 # 0 - неподвижен, 1 - вправо, 2 - вниз, 3 - влево, 4 - вверх
 		self.velocity = 1.0 / 2.0 # Скорость в клетках / игровой тик. Необходимо указывать дробную часть, иначе Питон интерпертирует это как целочисленное деление
-		Ghosts.append(self)
+		CHARACTERS.append(self)
 
 	def game_tick(self):
 		self.tick += 1
@@ -125,7 +138,7 @@ class Ghost(GameObject):
 			pass
 		else:
 			# Каждые 10 тиков случайно выбираем направление движения
-			# Вариант self.direction == 0 соотвествует моменту первого вызова метода game_tick() у обьекта
+			# self.direction == 0 соотвествует моменту первого вызова метода game_tick() у обьекта
 			if self.tick % 10 == 0 or self.direction == 0:
 				self.direction = random.randint(1, 4)
 		# Для каждого направления движения увеличиваем координату до тех пор, пока не достигнем стены
@@ -155,10 +168,11 @@ class Ghost(GameObject):
 
 
 class Pacman(GameObject):
-	def __init__(self, x, y, factor_tile = 1, symbol = 6):
+	def __init__(self, x, y, factor_tile = 1, symbol = 'P'):
 		GameObject.__init__(self, './resources/pacman.png', x, y, factor_tile, symbol)
 		self.direction = 0 # 0 - неподвижен, 1 - вправо, 2 - вниз, 3 - влево, 4 - вверх
 		self.velocity = 1 / 1 # Скорость в клетках / игровой тик
+		CHARACTERS.append(self)
 
 	def game_tick(self):
 		self.tick += 1
@@ -182,25 +196,28 @@ class Pacman(GameObject):
 		self.set_coord(self.x, self.y)
 
 # Функция говорит, что делать при определенных событиях, сгенерированных пользователем
-def process_events(events, packman):
+def process_events(events, control_obj):
 	for event in events:
 		# Если была нажата кнопка закрытия окна или клавиша Esc, то процесс завершается
 		if (event.type == QUIT) or (event.type == KEYDOWN and event.key == K_ESCAPE):
 			sys.exit(0)
-		# Выставляем значение поля direction у Packman в зависимости от нажатой клавиши
+
 		elif event.type == KEYDOWN:
+
+			# Выставляем значение поля direction у Pacman в зависимости от нажатой клавиши
 			if event.key == K_LEFT:
-				packman.direction = 3
+				control_obj.direction = 3
 			elif event.key == K_RIGHT:
-				packman.direction = 1
+				control_obj.direction = 1
 			elif event.key == K_UP:
-				packman.direction = 4
+				control_obj.direction = 4
 			elif event.key == K_DOWN:
-				packman.direction = 2
+				control_obj.direction = 2
 			elif event.key == K_SPACE:
-				packman.direction = 0
-			
-			elif event.key == K_t: # Запуск тестового режима
+				control_obj.direction = 0
+
+			# Запуск тестового режима
+			elif event.key == K_t:
 				test()
 
 
@@ -216,36 +233,70 @@ def test():
 		N += 1
 
 
-if __name__ == '__main__': # Если этот файл импортируется в другой, этот __name__ равен имени импортируемого файла без пути и расширения ('pacman'). Если файл запускается непосредственно, __name__  принимает значенние __main__
-	init_window() # Инициализируем окно приложения
-	ghost = Ghost(10, 15)
-	pacman = Pacman(0, 0)
-	wall = Wall(8, 8)
+def main():
+	global OBJECTS
+	global CHARACTERS
+	#map_name = input()
+	map_file = open('maps/1.txt')
 
 	background = pygame.image.load("./resources/background.png") # Загружаем изображение
 	screen = pygame.display.get_surface() # Получаем объект Surface для рисования в окне
 	# Засовывать это в init_window() нельзя: screen требуется для draw персонажей,
 	# и сделать screen глобальным параметром, отделив тем самым от pygame.init(), тоже невозможно
 
-	Map = Map()
+	map = Map(map_file)
+	map_file.close()
+	for y in range(map_size):
+		for x in range(map_size):
+			tile = map.get(x,y)
+			if '#' in tile:
+				wall = Wall(x, y)
+			elif 'G' in tile:
+				ghost = Ghost(x, y)
+			elif 'P' in tile:
+				pacman = Pacman(x, y)
+	exit_flag_1 = exit_flag_2 = False
+
 
 # В бесконечном цикле принимаем и обрабатываем сообщения
 	while 1:
 		process_events(pygame.event.get(), pacman)
 		pygame.time.delay(50)
 		draw_background(screen, background) # Фон перерисовывается поверх устаревших положений персонажей		
-		for obj in Objects:
-			obj.eraser(Map)
+		for obj in OBJECTS:
+			obj.eraser(map)
 			obj.game_tick()
-			obj.pencil(Map)
+			obj.pencil(map)
 			obj.draw(screen)
-		#Map.collisions()
-		pygame.display.update()
+		pygame.display.update() # Без этого отрисованное не будет отображаться
+
+		for obj_1 in CHARACTERS:
+			for obj_2 in OBJECTS:
+				if map.collisions(obj_1, obj_2):
+					background = pygame.image.load("./resources/game_over.png")
+					draw_background(screen, background)
+					pygame.display.update()
+					OBJECTS = []
+					CHARACTERS = []
+					exit_flag_1 = True
+					break
+			if exit_flag_1:
+				exit_flag_2 = True
+				break
+		if exit_flag_2:
+			break
+			
 		os.system('cls') # Очистить консоль
 		for y in range(map_size):
 			for x in range(map_size):
-				print(Map.get(x,y), end = ' ')
+				print(map.get(x,y), end = ' ')
 			print()
 		print(int(floor(pacman.x)),int(floor(pacman.y)))
-		print("It's test =",ITS_TEST)
+		print("It's test =", ITS_TEST)
 
+	pygame.time.delay(500)
+	main()
+
+if __name__ == '__main__': # Если этот файл импортируется в другой, этот __name__ равен имени импортируемого файла без пути и расширения ('pacman'). Если файл запускается непосредственно, __name__  принимает значенние __main__
+	init_window() # Инициализируем окно приложения
+	main()
