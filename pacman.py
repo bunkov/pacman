@@ -111,9 +111,22 @@ class Map:
 				tile = self.get(x,y)
 				if obj_1.symbol in tile:
 					if obj_2.symbol in tile: # Конструкция obj_1.symbol and obj_2.symbol не работает
-						
-						if type(obj_1) == Pacman and type(obj_2) == Ghost or type(obj_2) == Pacman and type(obj_1) == Ghost:
+						# Столкновение со стеной
+						if type(obj_2) == Wall:
+							obj_1.eraser(self)
+							if obj_1.direction == 1:
+								obj_1.x = floor(obj_1.x) - 1
+							elif obj_1.direction == 2:
+								obj_1.y = floor(obj_1.y) - 1
+							elif obj_1.direction == 3:
+								obj_1.x = floor(obj_1.x) + 1
+							elif obj_1.direction == 4:
+								obj_1.y = floor(obj_1.y) + 1
+							obj_1.pencil(self)
+						# Столкновение Пэкмена и призрака 
+						elif type(obj_1) == Pacman and type(obj_2) == Ghost or type(obj_2) == Pacman and type(obj_1) == Ghost:
 							return True
+						
 
 
 class Wall(GameObject):
@@ -255,35 +268,27 @@ def main():
 				ghost = Ghost(x, y)
 			elif 'P' in tile:
 				pacman = Pacman(x, y)
-	exit_flag_1 = exit_flag_2 = False
-
+	exit_flag = False
+	continue_flag = True
 
 # В бесконечном цикле принимаем и обрабатываем сообщения
 	while 1:
 		process_events(pygame.event.get(), pacman)
 		pygame.time.delay(50)
 		draw_background(screen, background) # Фон перерисовывается поверх устаревших положений персонажей		
-		for obj in OBJECTS:
-			obj.eraser(map)
-			obj.game_tick()
-			obj.pencil(map)
-			obj.draw(screen)
-		pygame.display.update() # Без этого отрисованное не будет отображаться
+		for char in CHARACTERS:
+			char.eraser(map)
+			char.game_tick()
+			char.pencil(map)
 
-		for obj_1 in CHARACTERS:
-			for obj_2 in OBJECTS:
-				if map.collisions(obj_1, obj_2):
-					background = pygame.image.load("./resources/game_over.png")
-					draw_background(screen, background)
-					pygame.display.update()
-					OBJECTS = []
-					CHARACTERS = []
-					exit_flag_1 = True
-					break
-			if exit_flag_1:
-				exit_flag_2 = True
-				break
-		if exit_flag_2:
+		for char in CHARACTERS:
+			for obj in OBJECTS:
+				if map.collisions(char, obj) and continue_flag:
+					exit_flag = True
+					continue_flag = False
+				obj.draw(screen)
+		pygame.display.update() # Без этого отрисованное не будет отображаться
+		if exit_flag:
 			break
 			
 		os.system('cls') # Очистить консоль
@@ -294,6 +299,11 @@ def main():
 		print(int(floor(pacman.x)),int(floor(pacman.y)))
 		print("It's test =", ITS_TEST)
 
+	background = pygame.image.load("./resources/game_over.png")
+	draw_background(screen, background)
+	pygame.display.update()
+	OBJECTS = []
+	CHARACTERS = []
 	pygame.time.delay(500)
 	main()
 
