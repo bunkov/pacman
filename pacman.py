@@ -13,7 +13,7 @@ import os
 tile_size = 32 # Размер клетки игрового поля в пикселях (предполагается, что клетки квадратные)
 map_size = 16 # Размер карты игрового поля в клетках (предполагается, что карта квадратная)
 OBJECTS = []
-CHARACTERS = []
+GHOSTS = []
 ITS_TEST = False
 N = 0 # Кол-во запусков тестового режима
 empty_symbol = ' ' # Символ, которым заполняется карта в пустых ячейках
@@ -125,6 +125,18 @@ class Map:
 						# Столкновение Пэкмена и призрака 
 						elif type(obj_1) == Pacman and type(obj_2) == Ghost or type(obj_2) == Pacman and type(obj_1) == Ghost:
 							return True
+
+	def direction(self, ghost, target):
+		if ghost.x == target.x:
+			if target.y > ghost.y:
+				ghost.direction = 2
+			else:
+				ghost.direction = 4
+		elif ghost.y == target.y:
+			if target.x > ghost.x:
+				ghost.direction = 1
+			else:
+				ghost.direction = 3
 						
 
 
@@ -139,10 +151,10 @@ class Wall(GameObject):
 
 class Ghost(GameObject):
 	def __init__(self, x, y, factor_tile = 1, symbol = 'G'):
-		GameObject.__init__(self, './resources/ghost.png', x, y, factor_tile, symbol)
+		GameObject.__init__(self, './resources/ghost_right.png', x, y, factor_tile, symbol)
 		self.direction = 0 # 0 - неподвижен, 1 - вправо, 2 - вниз, 3 - влево, 4 - вверх
-		self.velocity = 1.0 / 2.0 # Скорость в клетках / игровой тик. Необходимо указывать дробную часть, иначе Питон интерпертирует это как целочисленное деление
-		CHARACTERS.append(self)
+		self.velocity = 1.0 / 1.0 # Скорость в клетках / игровой тик. Необходимо указывать дробную часть, иначе Питон интерпертирует это как целочисленное деление
+		GHOSTS.append(self)
 
 	def game_tick(self):
 		self.tick += 1
@@ -151,27 +163,31 @@ class Ghost(GameObject):
 		else:
 			# Каждые 20 тиков случайно выбираем направление движения
 			# self.direction == 0 соотвествует моменту первого вызова метода game_tick() у обьекта
-			if self.tick % 20 == 0 or self.direction == 0:
-				self.direction = random.randint(1, 4)
+			#if self.tick % 10 == 0 or self.direction == 0:
+				#self.direction = random.randint(1, 4)
 		# Для каждого направления движения увеличиваем координату до тех пор, пока не достигнем стены
 		# Далее случайно меняем напрвление движения
 			if self.direction == 1:
 				self.x += self.velocity
+				self.image = pygame.image.load('./resources/ghost_right.png')
 				if self.x > map_size-1:
 					self.x = map_size-1
 					self.direction = random.randint(1, 4)
 			elif self.direction == 2:
 				self.y += self.velocity
+				self.image = pygame.image.load('./resources/ghost_down.png')
 				if self.y > map_size-1:
 					self.y = map_size-1
 					self.direction = random.randint(1, 4)
 			elif self.direction == 3:
 				self.x -= self.velocity
+				self.image = pygame.image.load('./resources/ghost_left.png')
 				if self.x < 0:
 					self.x = 0
 					self.direction = random.randint(1, 4)
 			elif self.direction == 4:
 				self.y -= self.velocity
+				self.image = pygame.image.load('./resources/ghost_up.png')
 				if self.y < 0:
 					self.y = 0
 					self.direction = random.randint(1, 4)
@@ -179,27 +195,30 @@ class Ghost(GameObject):
 
 class Pacman(GameObject):
 	def __init__(self, x, y, factor_tile = 1, symbol = 'P'):
-		GameObject.__init__(self, './resources/pacman.png', x, y, factor_tile, symbol)
+		GameObject.__init__(self, './resources/pacman_right.png', x, y, factor_tile, symbol)
 		self.direction = 0 # 0 - неподвижен, 1 - вправо, 2 - вниз, 3 - влево, 4 - вверх
-		self.velocity = 1 / 1 # Скорость в клетках / игровой тик
-		CHARACTERS.append(self)
+		self.velocity = 4.0 / 5.0 # Скорость в клетках / игровой тик
 
 	def game_tick(self):
 		self.tick += 1
 		if self.direction == 1:
 			self.x += self.velocity
+			self.image = pygame.image.load('./resources/pacman_right.png')
 			if self.x > map_size-1:
 				self.x = map_size-1
 		elif self.direction == 2:
 			self.y += self.velocity
+			self.image = pygame.image.load('./resources/pacman_down.png')
 			if self.y > map_size-1:
 				self.y = map_size-1
 		elif self.direction == 3:
 			self.x -= self.velocity
+			self.image = pygame.image.load('./resources/pacman_left.png')
 			if self.x < 0:
 				self.x = 0
 		elif self.direction == 4:
 			self.y -= self.velocity
+			self.image = pygame.image.load('./resources/pacman_up.png')
 			if self.y < 0:
 				self.y = 0
 
@@ -244,9 +263,10 @@ def test():
 
 def main():
 	global OBJECTS
-	global CHARACTERS
+	global GHOSTS
 	#map_name = input()
 	map_file = open('maps/1.txt')
+	CHARACTERS = []
 
 	background = pygame.image.load("./resources/background.png") # Загружаем изображение
 	screen = pygame.display.get_surface() # Получаем объект Surface для рисования в окне
@@ -266,12 +286,18 @@ def main():
 				pacman = Pacman(x, y)
 	exit_flag = False
 	continue_flag = True
+	CHARACTERS.append(pacman)
+	CHARACTERS += GHOSTS
 
 # В бесконечном цикле принимаем и обрабатываем сообщения
 	while 1:
 		process_events(pygame.event.get(), pacman)
+		for ghost in GHOSTS:
+			map.direction(ghost, pacman)
+		
 		pygame.time.delay(50)
 		draw_background(screen, background) # Фон перерисовывается поверх устаревших положений персонажей		
+
 		for char in CHARACTERS:
 			char.eraser(map)
 			char.game_tick()
@@ -288,18 +314,18 @@ def main():
 		if exit_flag: # Произошло столкновение с призраком
 			break
 			
-		#os.system('cls') # Очистить консоль
+		'''os.system('cls') # Очистить консоль
 		for y in range(map_size):
 			for x in range(map_size):
 				print(map.get(x,y), end = ' ')
 			print()
-		print("It's test =", ITS_TEST)
+		print("It's test =", ITS_TEST)'''
 
 	background = pygame.image.load("./resources/game_over.png")
 	draw_background(screen, background)
 	pygame.display.update()
 	OBJECTS = []
-	CHARACTERS = []
+	GHOSTS = []
 	pygame.time.delay(500)
 	main() # Рестарт
 
