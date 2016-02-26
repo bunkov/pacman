@@ -46,15 +46,9 @@ class GameObject(pygame.sprite.Sprite):
 		self.tick = 0 # Время, прошедшее с момента создания объекта, в условных единицах
 		self.tile_size = tile_size * floor(factor_tile)
 		self.symbol = symbol
-		self.set_coord(x, y)
 		OBJECTS.append(self)
-
-	def set_coord(self, x, y):
 		self.x = x
 		self.y = y
-		#self.screen_rect = Rect(floor(x) * self.tile_size, floor(y) * self.tile_size, self.tile_size, self.tile_size )
-		# Переменная, хранящая размеры и координаты отрисовки персонажа на экране
-		# Необходимость сомнительна
 
 	def draw(self, scr):
 		scr.blit(self.image, (floor(self.x) * self.tile_size, floor(self.y) * self.tile_size)) #(self.screen_rect.x, self.screen_rect.y))
@@ -72,9 +66,9 @@ class GameObject(pygame.sprite.Sprite):
 			tile.remove(self.symbol)
 
 	def pencil(self, Map): # Рисует объект на карте
-		
 		int_x = int(floor(self.x)) # int() - костыль для второго питона
 		int_y = int(floor(self.y))
+
 		tile = Map.get(int_x, int_y) # Ячейка x, y, в которую пришел персонаж
 		
 		if type(self) == Wall:
@@ -111,17 +105,22 @@ class Map:
 				tile = self.get(x,y)
 				if obj_1.symbol in tile:
 					if obj_2.symbol in tile: # Конструкция obj_1.symbol and obj_2.symbol не работает
+
 						# Столкновение со стеной
 						if type(obj_2) == Wall:
 							obj_1.eraser(self)
 							if obj_1.direction == 1:
 								obj_1.x = floor(obj_1.x) - 1
+								obj_1.direction = 0
 							elif obj_1.direction == 2:
 								obj_1.y = floor(obj_1.y) - 1
+								obj_1.direction = 0
 							elif obj_1.direction == 3:
 								obj_1.x = floor(obj_1.x) + 1
+								obj_1.direction = 0
 							elif obj_1.direction == 4:
 								obj_1.y = floor(obj_1.y) + 1
+								obj_1.direction = 0
 							obj_1.pencil(self)
 						# Столкновение Пэкмена и призрака 
 						elif type(obj_1) == Pacman and type(obj_2) == Ghost or type(obj_2) == Pacman and type(obj_1) == Ghost:
@@ -150,34 +149,32 @@ class Ghost(GameObject):
 		if ITS_TEST: # Если тестовый режим запущен
 			pass
 		else:
-			# Каждые 10 тиков случайно выбираем направление движения
+			# Каждые 20 тиков случайно выбираем направление движения
 			# self.direction == 0 соотвествует моменту первого вызова метода game_tick() у обьекта
-			if self.tick % 10 == 0 or self.direction == 0:
+			if self.tick % 20 == 0 or self.direction == 0:
 				self.direction = random.randint(1, 4)
 		# Для каждого направления движения увеличиваем координату до тех пор, пока не достигнем стены
 		# Далее случайно меняем напрвление движения
 			if self.direction == 1:
 				self.x += self.velocity
-				if self.x >= map_size-1:
+				if self.x > map_size-1:
 					self.x = map_size-1
 					self.direction = random.randint(1, 4)
 			elif self.direction == 2:
 				self.y += self.velocity
-				if self.y >= map_size-1:
+				if self.y > map_size-1:
 					self.y = map_size-1
 					self.direction = random.randint(1, 4)
 			elif self.direction == 3:
 				self.x -= self.velocity
-				if self.x <= 0:
+				if self.x < 0:
 					self.x = 0
 					self.direction = random.randint(1, 4)
 			elif self.direction == 4:
 				self.y -= self.velocity
-				if self.y <= 0:
+				if self.y < 0:
 					self.y = 0
 					self.direction = random.randint(1, 4)
-
-			self.set_coord(self.x, self.y)
 
 
 class Pacman(GameObject):
@@ -191,22 +188,21 @@ class Pacman(GameObject):
 		self.tick += 1
 		if self.direction == 1:
 			self.x += self.velocity
-			if self.x >= map_size-1:
+			if self.x > map_size-1:
 				self.x = map_size-1
 		elif self.direction == 2:
 			self.y += self.velocity
-			if self.y >= map_size-1:
+			if self.y > map_size-1:
 				self.y = map_size-1
 		elif self.direction == 3:
 			self.x -= self.velocity
-			if self.x <= 0:
+			if self.x < 0:
 				self.x = 0
 		elif self.direction == 4:
 			self.y -= self.velocity
-			if self.y <= 0:
+			if self.y < 0:
 				self.y = 0
 
-		self.set_coord(self.x, self.y)
 
 # Функция говорит, что делать при определенных событиях, сгенерированных пользователем
 def process_events(events, control_obj):
@@ -281,22 +277,22 @@ def main():
 			char.game_tick()
 			char.pencil(map)
 
+		# Обработка столкновений
 		for char in CHARACTERS:
 			for obj in OBJECTS:
-				if map.collisions(char, obj) and continue_flag:
+				if map.collisions(char, obj) and continue_flag: # Если пэкмен столкнулся с призраком и событие не было зафиксировано
 					exit_flag = True
-					continue_flag = False
+					continue_flag = False # Событие зафиксировано, не повторять
 				obj.draw(screen)
 		pygame.display.update() # Без этого отрисованное не будет отображаться
-		if exit_flag:
+		if exit_flag: # Произошло столкновение с призраком
 			break
 			
-		os.system('cls') # Очистить консоль
+		#os.system('cls') # Очистить консоль
 		for y in range(map_size):
 			for x in range(map_size):
 				print(map.get(x,y), end = ' ')
 			print()
-		print(int(floor(pacman.x)),int(floor(pacman.y)))
 		print("It's test =", ITS_TEST)
 
 	background = pygame.image.load("./resources/game_over.png")
@@ -305,7 +301,7 @@ def main():
 	OBJECTS = []
 	CHARACTERS = []
 	pygame.time.delay(500)
-	main()
+	main() # Рестарт
 
 if __name__ == '__main__': # Если этот файл импортируется в другой, этот __name__ равен имени импортируемого файла без пути и расширения ('pacman'). Если файл запускается непосредственно, __name__  принимает значенние __main__
 	init_window() # Инициализируем окно приложения
