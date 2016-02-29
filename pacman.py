@@ -153,7 +153,7 @@ class Ghost(GameObject):
 	def __init__(self, x, y, factor_tile = 1, symbol = 'G'):
 		GameObject.__init__(self, './resources/ghost_right.png', x, y, factor_tile, symbol)
 		self.direction = 0 # 0 - неподвижен, 1 - вправо, 2 - вниз, 3 - влево, 4 - вверх
-		self.velocity = 1.0 / 1.0 # Скорость в клетках / игровой тик. Необходимо указывать дробную часть, иначе Питон интерпертирует это как целочисленное деление
+		self.velocity = 3.0 / 4.0 # Скорость в клетках / игровой тик. Необходимо указывать дробную часть, иначе Питон интерпертирует это как целочисленное деление
 		GHOSTS.append(self)
 
 	def game_tick(self):
@@ -197,7 +197,7 @@ class Pacman(GameObject):
 	def __init__(self, x, y, factor_tile = 1, symbol = 'P'):
 		GameObject.__init__(self, './resources/pacman_right.png', x, y, factor_tile, symbol)
 		self.direction = 0 # 0 - неподвижен, 1 - вправо, 2 - вниз, 3 - влево, 4 - вверх
-		self.velocity = 4.0 / 5.0 # Скорость в клетках / игровой тик
+		self.velocity = 1.0 / 2.0 # Скорость в клетках / игровой тик
 
 	def game_tick(self):
 		self.tick += 1
@@ -265,7 +265,7 @@ def main():
 	global OBJECTS
 	global GHOSTS
 	#map_name = input()
-	map_file = open('maps/1.txt')
+	map_file = open('maps/2.txt')
 	CHARACTERS = []
 
 	background = pygame.image.load("./resources/background.png") # Загружаем изображение
@@ -279,9 +279,9 @@ def main():
 		for x in range(map_size):
 			tile = map.get(x,y)
 			if '#' in tile:
-				wall = Wall(x, y)
+				Wall(x, y)
 			elif 'G' in tile:
-				ghost = Ghost(x, y)
+				Ghost(x, y)
 			elif 'P' in tile:
 				pacman = Pacman(x, y)
 	exit_flag = False
@@ -295,7 +295,7 @@ def main():
 		for ghost in GHOSTS:
 			map.direction(ghost, pacman)
 		
-		pygame.time.delay(50)
+		pygame.time.delay(10)
 		draw_background(screen, background) # Фон перерисовывается поверх устаревших положений персонажей		
 
 		for char in CHARACTERS:
