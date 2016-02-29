@@ -100,6 +100,7 @@ class Map:
 	'''Увы, такой подход допускает в редких случаях прохождение двигающихся объектов сквозь друг друга, 
 	но избегает гамовера на границе тайлов (когда призрак и пэкмен стоят не в одной ячейке)'''
 	def collisions(self, obj_1, obj_2):
+		points_exist = False
 		for y in range(map_size):
 			for x in range(map_size):
 				tile = self.get(x,y)
@@ -122,21 +123,33 @@ class Map:
 								obj_1.y = floor(obj_1.y) + 1
 								obj_1.direction = 0
 							obj_1.pencil(self)
-						# Столкновение Пэкмена и призрака 
+						# Столкновение Пэкмена и призрака
 						elif type(obj_1) == Pacman and type(obj_2) == Ghost or type(obj_2) == Pacman and type(obj_1) == Ghost:
 							return True
+						# Пэкмен съедает точку
+						elif type(obj_1) == Pacman and type(obj_2) == Point:
+							obj_2.eraser(self)
+				if Point in tile:
+					points_exist = True
+		if not points_exist:
+			return True
 
 	def direction(self, ghost, target):
-		if ghost.x == target.x:
+		if floor(ghost.x) == floor(target.x):
 			if target.y > ghost.y:
 				ghost.direction = 2
 			else:
 				ghost.direction = 4
-		elif ghost.y == target.y:
+		elif floor(ghost.y) == floor(target.y):
 			if target.x > ghost.x:
 				ghost.direction = 1
 			else:
 				ghost.direction = 3
+		else:
+			# Каждые 10 тиков случайно выбираем направление движения
+			# self.direction == 0 соотвествует моменту первого вызова метода game_tick() у обьекта
+			if ghost.tick % 10 == 0 or ghost.direction == 0:
+				ghost.direction = random.randint(1, 4)
 						
 
 
@@ -153,7 +166,7 @@ class Ghost(GameObject):
 	def __init__(self, x, y, factor_tile = 1, symbol = 'G'):
 		GameObject.__init__(self, './resources/ghost_right.png', x, y, factor_tile, symbol)
 		self.direction = 0 # 0 - неподвижен, 1 - вправо, 2 - вниз, 3 - влево, 4 - вверх
-		self.velocity = 3.0 / 4.0 # Скорость в клетках / игровой тик. Необходимо указывать дробную часть, иначе Питон интерпертирует это как целочисленное деление
+		self.velocity = 5.0 / 8.0 # Скорость в клетках / игровой тик. Необходимо указывать дробную часть, иначе Питон интерпертирует это как целочисленное деление
 		GHOSTS.append(self)
 
 	def game_tick(self):
@@ -161,10 +174,6 @@ class Ghost(GameObject):
 		if ITS_TEST: # Если тестовый режим запущен
 			pass
 		else:
-			# Каждые 20 тиков случайно выбираем направление движения
-			# self.direction == 0 соотвествует моменту первого вызова метода game_tick() у обьекта
-			#if self.tick % 10 == 0 or self.direction == 0:
-				#self.direction = random.randint(1, 4)
 		# Для каждого направления движения увеличиваем координату до тех пор, пока не достигнем стены
 		# Далее случайно меняем напрвление движения
 			if self.direction == 1:
@@ -222,6 +231,9 @@ class Pacman(GameObject):
 			if self.y < 0:
 				self.y = 0
 
+class Point(GameObject):
+	def __init__(self, x, y, factor_tile = 1, symbol = 'o'):
+		GameObject.__init__(self, './resources/point.png', x, y, factor_tile, symbol)
 
 # Функция говорит, что делать при определенных событиях, сгенерированных пользователем
 def process_events(events, control_obj):
@@ -284,7 +296,10 @@ def main():
 				Ghost(x, y)
 			elif 'P' in tile:
 				pacman = Pacman(x, y)
+			elif 'o' in tile:
+				Point(x,y)
 	exit_flag = False
+	game_over_flag = False
 	continue_flag = True
 	CHARACTERS.append(pacman)
 	CHARACTERS += GHOSTS
@@ -292,10 +307,8 @@ def main():
 # В бесконечном цикле принимаем и обрабатываем сообщения
 	while 1:
 		process_events(pygame.event.get(), pacman)
-		for ghost in GHOSTS:
-			map.direction(ghost, pacman)
 		
-		pygame.time.delay(10)
+		pygame.time.delay(50)
 		draw_background(screen, background) # Фон перерисовывается поверх устаревших положений персонажей		
 
 		for char in CHARACTERS:
@@ -309,10 +322,15 @@ def main():
 				if map.collisions(char, obj) and continue_flag: # Если пэкмен столкнулся с призраком и событие не было зафиксировано
 					exit_flag = True
 					continue_flag = False # Событие зафиксировано, не повторять
+					if type(obj) == Pacman and type(char) == Ghost or type(char) == Pacman and type(obj) == Ghost:
+						game_over_flag = True
 				obj.draw(screen)
 		pygame.display.update() # Без этого отрисованное не будет отображаться
 		if exit_flag: # Произошло столкновение с призраком
 			break
+		
+		for ghost in GHOSTS:
+			map.direction(ghost, pacman)
 			
 		'''os.system('cls') # Очистить консоль
 		for y in range(map_size):
@@ -321,7 +339,10 @@ def main():
 			print()
 		print("It's test =", ITS_TEST)'''
 
-	background = pygame.image.load("./resources/game_over.png")
+	if game_over_flag:
+		background = pygame.image.load("./resources/game_over.png")
+	else:
+		background = pygame.image.load("./resources/success.png")
 	draw_background(screen, background)
 	pygame.display.update()
 	OBJECTS = []
