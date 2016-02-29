@@ -14,6 +14,7 @@ tile_size = 32 # Размер клетки игрового поля в пикс
 map_size = 16 # Размер карты игрового поля в клетках (предполагается, что карта квадратная)
 OBJECTS = []
 GHOSTS = []
+POINTS = []
 ITS_TEST = False
 N = 0 # Кол-во запусков тестового режима
 empty_symbol = ' ' # Символ, которым заполняется карта в пустых ячейках
@@ -62,7 +63,7 @@ class GameObject(pygame.sprite.Sprite):
 			int_x = int(floor(self.x)) # int() - костыль для второго питона
 			int_y = int(floor(self.y))
 			tile = Map.get(int_x, int_y) # Ячейка x, y, в которой был персонаж
-
+			print(tile, int_x, int_y)
 			tile.remove(self.symbol)
 
 	def pencil(self, Map): # Рисует объект на карте
@@ -100,6 +101,7 @@ class Map:
 	'''Увы, такой подход допускает в редких случаях прохождение двигающихся объектов сквозь друг друга, 
 	но избегает гамовера на границе тайлов (когда призрак и пэкмен стоят не в одной ячейке)'''
 	def collisions(self, obj_1, obj_2):
+		global POINTS
 		points_exist = False
 		for y in range(map_size):
 			for x in range(map_size):
@@ -129,8 +131,10 @@ class Map:
 						# Пэкмен съедает точку
 						elif type(obj_1) == Pacman and type(obj_2) == Point:
 							obj_2.eraser(self)
-				if Point in tile:
-					points_exist = True
+							POINTS.remove(obj_2)
+
+		if  POINTS:
+			points_exist = True
 		if not points_exist:
 			return True
 
@@ -234,6 +238,7 @@ class Pacman(GameObject):
 class Point(GameObject):
 	def __init__(self, x, y, factor_tile = 1, symbol = 'o'):
 		GameObject.__init__(self, './resources/point.png', x, y, factor_tile, symbol)
+		POINTS.append(self)
 
 # Функция говорит, что делать при определенных событиях, сгенерированных пользователем
 def process_events(events, control_obj):
@@ -276,6 +281,7 @@ def test():
 def main():
 	global OBJECTS
 	global GHOSTS
+	global POINTS
 	#map_name = input()
 	map_file = open('maps/2.txt')
 	CHARACTERS = []
@@ -319,7 +325,7 @@ def main():
 		# Обработка столкновений
 		for char in CHARACTERS:
 			for obj in OBJECTS:
-				if map.collisions(char, obj) and continue_flag: # Если пэкмен столкнулся с призраком и событие не было зафиксировано
+				if map.collisions(char, obj) and continue_flag: # Если пэкмен столкнулся с призраком или собрал все точки, и событие не было зафиксировано
 					exit_flag = True
 					continue_flag = False # Событие зафиксировано, не повторять
 					if type(obj) == Pacman and type(char) == Ghost or type(char) == Pacman and type(obj) == Ghost:
@@ -332,21 +338,26 @@ def main():
 		for ghost in GHOSTS:
 			map.direction(ghost, pacman)
 			
-		'''os.system('cls') # Очистить консоль
+		os.system('cls') # Очистить консоль
 		for y in range(map_size):
 			for x in range(map_size):
 				print(map.get(x,y), end = ' ')
 			print()
-		print("It's test =", ITS_TEST)'''
+		print("It's tTest =", ITS_TEST, POINTS, bool(POINTS))
 
 	if game_over_flag:
 		background = pygame.image.load("./resources/game_over.png")
 	else:
-		background = pygame.image.load("./resources/success.png")
+		background = pygame.image.load("./resources/you.png")
+		draw_background(screen, background)
+		pygame.display.update()
+		pygame.time.delay(500)
+		background = pygame.image.load("./resources/win.png")
 	draw_background(screen, background)
 	pygame.display.update()
 	OBJECTS = []
 	GHOSTS = []
+	POINTS = []
 	pygame.time.delay(500)
 	main() # Рестарт
 
