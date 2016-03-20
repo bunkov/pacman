@@ -47,9 +47,9 @@ class GameObject(pygame.sprite.Sprite):
 		self.tick = 0 # Время, прошедшее с момента создания объекта, в условных единицах
 		self.tile_size = tile_size * floor(factor_tile)
 		self.symbol = symbol
-		OBJECTS.append(self)
 		self.x = x
 		self.y = y
+		OBJECTS.append(self)
 
 	def draw(self, scr):
 		scr.blit(self.image, (floor(self.x) * self.tile_size, floor(self.y) * self.tile_size)) #(self.screen_rect.x, self.screen_rect.y))
@@ -102,7 +102,6 @@ class Map:
 	но избегает гамовера на границе тайлов (когда призрак и пэкмен стоят не в одной ячейке)'''
 	def collisions(self, obj_1, obj_2):
 		global POINTS
-		points_exist = False
 		for y in range(map_size):
 			for x in range(map_size):
 				tile = self.get(x,y)
@@ -130,30 +129,50 @@ class Map:
 							return True
 						# Пэкмен съедает точку
 						elif type(obj_1) == Pacman and type(obj_2) == Point:
+							print('collisions',tile,obj_2.x,obj_2.y)
 							obj_2.eraser(self)
 							POINTS.remove(obj_2)
+							OBJECTS.remove(obj_2)
 
-		if  POINTS:
-			points_exist = True
-		if not points_exist:
+		if  not POINTS: # Точек не осталось, массив пустой
 			return True
 
-	def direction(self, ghost, target):
-		if floor(ghost.x) == floor(target.x):
-			if target.y > ghost.y:
+	def direction(self, ghost, footprint_x, footprint_y):
+		free_way = True
+		# Если призрак на следе, продолжать движение и не менять его направление по-рандому
+		if floor(ghost.x) == footprint_x and floor(ghost.y) == footprint_y:
+			pass
+		# Цель на линии призрака
+		elif floor(ghost.x) == footprint_x:
+			# Проверка на наличие стен
+			lower_edge = int(min(ghost.y, footprint_y))
+			higher_edge = int(max(ghost.y, footprint_y))
+			for y in range(lower_edge, higher_edge):
+				tile = self.get(footprint_x, y)
+				if '#' in tile:
+					free_way = False
+			
+			if footprint_y > ghost.y and free_way:
 				ghost.direction = 2
-			else:
+			elif footprint_y < ghost.y and free_way: # Нельзя допускать равенства, иначе призрак повернет в обратном направлении из-за того, что двигается по следу
 				ghost.direction = 4
-		elif floor(ghost.y) == floor(target.y):
-			if target.x > ghost.x:
+		
+		elif floor(ghost.y) == footprint_y:
+
+			lower_edge = int(min(ghost.x, footprint_x))
+			higher_edge = int(max(ghost.x, footprint_x))
+			for x in range(lower_edge, higher_edge):
+				tile = self.get(x, footprint_y)
+				if '#' in tile:
+					free_way = False
+			
+			if footprint_x > ghost.x and free_way:
 				ghost.direction = 1
-			else:
+			elif footprint_x < ghost.x and free_way:
 				ghost.direction = 3
-		else:
-			# Каждые 10 тиков случайно выбираем направление движения
-			# self.direction == 0 соотвествует моменту первого вызова метода game_tick() у обьекта
-			if ghost.tick % 10 == 0 or ghost.direction == 0:
-				ghost.direction = random.randint(1, 4)
+		# Когда призрак попал в стену или только создан
+		elif ghost.direction == 0:
+			ghost.direction = random.randint(1, 4)
 						
 
 
@@ -170,7 +189,7 @@ class Ghost(GameObject):
 	def __init__(self, x, y, factor_tile = 1, symbol = 'G'):
 		GameObject.__init__(self, './resources/ghost_right.png', x, y, factor_tile, symbol)
 		self.direction = 0 # 0 - неподвижен, 1 - вправо, 2 - вниз, 3 - влево, 4 - вверх
-		self.velocity = 5.0 / 8.0 # Скорость в клетках / игровой тик. Необходимо указывать дробную часть, иначе Питон интерпертирует это как целочисленное деление
+		self.velocity = 8.0 / 10.0 # Скорость в клетках / игровой тик. Необходимо указывать дробную часть, иначе Питон интерпертирует это как целочисленное деление
 		GHOSTS.append(self)
 
 	def game_tick(self):
@@ -185,32 +204,28 @@ class Ghost(GameObject):
 				self.image = pygame.image.load('./resources/ghost_right.png')
 				if self.x > map_size-1:
 					self.x = map_size-1
-					self.direction = random.randint(1, 4)
 			elif self.direction == 2:
 				self.y += self.velocity
 				self.image = pygame.image.load('./resources/ghost_down.png')
 				if self.y > map_size-1:
 					self.y = map_size-1
-					self.direction = random.randint(1, 4)
 			elif self.direction == 3:
 				self.x -= self.velocity
 				self.image = pygame.image.load('./resources/ghost_left.png')
 				if self.x < 0:
 					self.x = 0
-					self.direction = random.randint(1, 4)
 			elif self.direction == 4:
 				self.y -= self.velocity
 				self.image = pygame.image.load('./resources/ghost_up.png')
 				if self.y < 0:
 					self.y = 0
-					self.direction = random.randint(1, 4)
 
 
 class Pacman(GameObject):
 	def __init__(self, x, y, factor_tile = 1, symbol = 'P'):
 		GameObject.__init__(self, './resources/pacman_right.png', x, y, factor_tile, symbol)
 		self.direction = 0 # 0 - неподвижен, 1 - вправо, 2 - вниз, 3 - влево, 4 - вверх
-		self.velocity = 1.0 / 2.0 # Скорость в клетках / игровой тик
+		self.velocity = 6.0 / 10.0 # Скорость в клетках / игровой тик
 
 	def game_tick(self):
 		self.tick += 1
@@ -313,7 +328,9 @@ def main():
 # В бесконечном цикле принимаем и обрабатываем сообщения
 	while 1:
 		process_events(pygame.event.get(), pacman)
-		
+		footprint_x = floor(pacman.x)
+		footprint_y = floor(pacman.y)
+
 		pygame.time.delay(50)
 		draw_background(screen, background) # Фон перерисовывается поверх устаревших положений персонажей		
 
@@ -333,17 +350,18 @@ def main():
 				obj.draw(screen)
 		pygame.display.update() # Без этого отрисованное не будет отображаться
 		if exit_flag: # Произошло столкновение с призраком
+			print(POINTS, bool(POINTS))
 			break
 		
 		for ghost in GHOSTS:
-			map.direction(ghost, pacman)
+			map.direction(ghost, footprint_x, footprint_y)
 			
-		os.system('cls') # Очистить консоль
+		'''os.system('cls') # Очистить консоль
 		for y in range(map_size):
 			for x in range(map_size):
 				print(map.get(x,y), end = ' ')
 			print()
-		print("It's tTest =", ITS_TEST, POINTS, bool(POINTS))
+		print("It's Test =", ITS_TEST, POINTS)'''
 
 	if game_over_flag:
 		background = pygame.image.load("./resources/game_over.png")
