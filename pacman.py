@@ -13,7 +13,6 @@ tile_size = 32 # Размер клетки игрового поля в пикс
 map_size = 16 # Размер карты игрового поля в клетках (предполагается, что карта квадратная)
 ITS_TEST = False
 N = 0 # Кол-во запусков тестового режима
-empty_symbol = ' ' # Символ, которым заполняется карта в пустых ячейках
 
 def init_window():
 	pygame.init() # Инициализируем библиотеку - чтоа?
@@ -36,13 +35,11 @@ class GameObject(pygame.sprite.Sprite):
 	# img - путь к файлу с изображением объекта
 	# x, y - координаты объекта на игровом поле
 	# factor_tile - целая часть показывает, сколько тайлов занимает объект
-	# symbol - символ, которым будет отображаться объект на карте
-	def __init__(self, img, x, y, factor_tile, symbol):
+	def __init__(self, img, x, y, factor_tile):
 		pygame.sprite.Sprite.__init__(self)
 		self.image = pygame.image.load(img) # Загружаем изображение объекта
 		self.tick = 0 # Время, прошедшее с момента создания объекта, в условных единицах
 		self.tile_size = tile_size * int(factor_tile)
-		self.symbol = symbol
 		self.x = x
 		self.y = y
 
@@ -71,8 +68,14 @@ class Map:
 					elif strings[y][x] == 'o':
 						object = Point(x,y)
 						POINTS.append(object)
+					elif strings[y][x] == 's':
+						object = Point(x,y,'speed')
+						POINTS.append(object)
+					elif strings[y][x] == 'e':
+						object = Point(x,y,'eat')
+						POINTS.append(object)
 					elif strings[y][x] == ' ':
-						object = '<Пустой объект, серьезно!>'
+						object = ''
 					self.map[x][y].append(object)
 
 	# Функция возвращает список обьектов в данной точке карты
@@ -82,7 +85,7 @@ class Map:
 	# Обрабатывает столкновения
 	'''Увы, такой подход допускает в редких случаях прохождение двигающихся объектов сквозь друг друга, 
 	но избегает гамовера на границе тайлов (когда призрак и пэкмен стоят не в одной ячейке)'''
-	def collisions(self, obj_1, obj_2, OBJECTS, POINTS):
+	def collisions(self, obj_1, obj_2, OBJECTS, POINTS, GHOSTS, CHARACTERS):
 		int_x = int(obj_1.x)
 		int_y = int(obj_1.y)
 		tile = self.get(int_x,int_y)
@@ -110,15 +113,48 @@ class Map:
 					tile.remove(obj_1)
 				# Столкновение Пэкмена и призрака
 				elif type(obj_1) == Pacman and type(obj_2) == Ghost or type(obj_2) == Pacman and type(obj_1) == Ghost:
-					return True
+					if type(obj_1) == Pacman:
+						pacman = obj_1
+						ghost = obj_2
+					else:
+						pacman = obj_2
+						ghost = obj_1
+					if pacman.hungry:
+						tile.remove(ghost)
+						GHOSTS.remove(ghost)
+						OBJECTS.remove(ghost)
+						CHARACTERS.remove(ghost)
+					else:
+						return True
 				# Пэкмен съедает точку
 				elif type(obj_1) == Pacman and type(obj_2) == Point:
-					print('collisions',tile,obj_2.x,obj_2.y)
+					
+					if obj_2.effect == 'speed':
+						obj_1.velocity = 9.0 / 10.0
+						obj_1.speed_bonus_date = obj_1.tick
+					
+					elif obj_2.effect == 'eat':
+						obj_1.hungry = True
+						obj_1.eat_bonus_date = obj_1.tick
+						for ghost in GHOSTS:
+							ghost.img_way = './resources/weak_ghost/'
+							ghost.velocity = 4.0 / 10.0
+					
 					tile.remove(obj_2)
 					POINTS.remove(obj_2)
 					OBJECTS.remove(obj_2)
-
-		if  not POINTS: # Точек не осталось, массив пустой
+		
+		if type(obj_1) == Pacman and obj_1.tick - obj_1.speed_bonus_date == 20:
+			obj_1.velocity = 6.0 / 10.0
+			obj_1.speed_bonus_date = 0
+		if type(obj_1) == Pacman and obj_1.tick - obj_1.eat_bonus_date == 20:
+			obj_1.hungry = False
+			obj_1.eat_bonus_date = 0
+			for ghost in GHOSTS:
+				ghost.img_way = './resources/normal_ghost/'
+				ghost.velocity = 8.0 / 10.0
+		
+		if  not POINTS or not GHOSTS: # Точек или призраков не осталось
 			return True
 
 	def direction(self, ghost, footprint_x, footprint_y):
@@ -163,17 +199,17 @@ class Map:
 
 
 class Wall(GameObject):
-	def __init__(self, x, y, factor_tile = 1, symbol = '#'):
-		GameObject.__init__(self, './resources/wall.png', x, y, factor_tile, symbol)
-		self.painted = False # Отрисована ли стена на карте
+	def __init__(self, x, y, factor_tile = 1):
+		GameObject.__init__(self, './resources/wall.png', x, y, factor_tile)
 
 	def game_tick(self):
 		self.tick += 1
 
 
 class Ghost(GameObject):
-	def __init__(self, x, y, factor_tile = 1, symbol = 'G'):
-		GameObject.__init__(self, './resources/ghost_right.png', x, y, factor_tile, symbol)
+	def __init__(self, x, y, factor_tile = 1):
+		self.img_way = './resources/normal_ghost/' # Путь до каталога с изображениями призрака
+		GameObject.__init__(self, self.img_way + 'ghost_right.png', x, y, factor_tile)
 		self.direction = 0 # 0 - неподвижен, 1 - вправо, 2 - вниз, 3 - влево, 4 - вверх
 		self.velocity = 8.0 / 10.0 # Скорость в клетках / игровой тик. Необходимо указывать дробную часть, иначе Питон интерпертирует это как целочисленное деление
 
@@ -186,58 +222,73 @@ class Ghost(GameObject):
 		# Далее случайно меняем напрвление движения
 			if self.direction == 1:
 				self.x += self.velocity
-				self.image = pygame.image.load('./resources/ghost_right.png')
+				self.image = pygame.image.load(self.img_way + 'ghost_right.png')
 				if self.x > map_size-1:
 					self.x = map_size-1
 			elif self.direction == 2:
 				self.y += self.velocity
-				self.image = pygame.image.load('./resources/ghost_down.png')
+				self.image = pygame.image.load(self.img_way + 'ghost_down.png')
 				if self.y > map_size-1:
 					self.y = map_size-1
 			elif self.direction == 3:
 				self.x -= self.velocity
-				self.image = pygame.image.load('./resources/ghost_left.png')
+				self.image = pygame.image.load(self.img_way + 'ghost_left.png')
 				if self.x < 0:
 					self.x = 0
 			elif self.direction == 4:
 				self.y -= self.velocity
-				self.image = pygame.image.load('./resources/ghost_up.png')
+				self.image = pygame.image.load(self.img_way + 'ghost_up.png')
 				if self.y < 0:
 					self.y = 0
 
 
 class Pacman(GameObject):
-	def __init__(self, x, y, factor_tile = 1, symbol = 'P'):
-		GameObject.__init__(self, './resources/pacman_right.png', x, y, factor_tile, symbol)
+	def __init__(self, x, y, factor_tile = 1):
+		self.img_way = './resources/normal_pacman/' # Путь до каталога с изображениями Пэкмена
+		GameObject.__init__(self, self.img_way + 'pacman_right.png', x, y, factor_tile)
 		self.direction = 0 # 0 - неподвижен, 1 - вправо, 2 - вниз, 3 - влево, 4 - вверх
 		self.velocity = 6.0 / 10.0 # Скорость в клетках / игровой тик
+		self.speed_bonus_date = 0 # Время начала действия бонуса на скорость
+		self.eat_bonus_date = 0 # Время начала действия бонуса на поедание призраков
+		self.hungry = False # Может ли Пэкмен съедать призраков
 
 	def game_tick(self):
 		self.tick += 1
+		if self.speed_bonus_date != 0:
+			self.img_way = './resources/fast_pacman/'
+		else:
+			self.img_way = './resources/normal_pacman/'
 		if self.direction == 1:
 			self.x += self.velocity
-			self.image = pygame.image.load('./resources/pacman_right.png')
+			self.image = pygame.image.load(self.img_way + 'pacman_right.png')
 			if self.x > map_size-1:
 				self.x = map_size-1
 		elif self.direction == 2:
 			self.y += self.velocity
-			self.image = pygame.image.load('./resources/pacman_down.png')
+			self.image = pygame.image.load(self.img_way + 'pacman_down.png')
 			if self.y > map_size-1:
 				self.y = map_size-1
 		elif self.direction == 3:
 			self.x -= self.velocity
-			self.image = pygame.image.load('./resources/pacman_left.png')
+			self.image = pygame.image.load(self.img_way + 'pacman_left.png')
 			if self.x < 0:
 				self.x = 0
 		elif self.direction == 4:
 			self.y -= self.velocity
-			self.image = pygame.image.load('./resources/pacman_up.png')
+			self.image = pygame.image.load(self.img_way + 'pacman_up.png')
 			if self.y < 0:
 				self.y = 0
 
 class Point(GameObject):
-	def __init__(self, x, y, factor_tile = 1, symbol = 'o'):
-		GameObject.__init__(self, './resources/point.png', x, y, factor_tile, symbol)
+	def __init__(self, x, y, effect = 'nothing', factor_tile = 1):
+		self.effect = effect
+		if self.effect == 'speed':
+			self.img = 'cherry.png'
+		elif self.effect == 'nothing':
+			self.img = 'point.png'
+		elif self.effect == 'eat':
+			self.img = 'pepper.png'
+		GameObject.__init__(self, './resources/points/' + self.img, x, y, factor_tile)
 
 # Функция говорит, что делать при определенных событиях, сгенерированных пользователем
 def process_events(events, control_obj):
@@ -277,13 +328,12 @@ def test():
 		N += 1
 
 
-def main():
+def main(map_name = input()):
 	OBJECTS = []
 	GHOSTS = []
 	POINTS = []
 	CHARACTERS = []
-	#map_name = input()
-	map_file = open('maps/2.txt')
+	map_file = open('maps/'+ map_name +'.txt')
 
 	background = pygame.image.load("./resources/background.png") # Загружаем изображение
 	screen = pygame.display.get_surface() # Получаем объект Surface для рисования в окне
@@ -313,8 +363,6 @@ def main():
 			int_x = int(char.x)
 			int_y = int(char.y)
 			tile = map.get(int_x,int_y)
-			if type(char) == Pacman:
-				print(char.x,char.y)
 			char.game_tick()
 			
 			new_x = int(char.x)
@@ -326,26 +374,29 @@ def main():
 		# Обработка столкновений
 		for char in CHARACTERS:
 			for obj in OBJECTS:
-				if map.collisions(char, obj, OBJECTS, POINTS) and continue_flag: # Если пэкмен столкнулся с призраком или собрал все точки, и событие не было зафиксировано
+				if map.collisions(char, obj, OBJECTS, POINTS, GHOSTS, CHARACTERS) and continue_flag: # Если пэкмен столкнулся с призраком или собрал все точки, и событие не было зафиксировано
 					exit_flag = True
 					continue_flag = False # Событие зафиксировано, не повторять
-					if type(obj) == Pacman and type(char) == Ghost or type(char) == Pacman and type(obj) == Ghost:
-						game_over_flag = True
+					if type(char) == Ghost or type(obj) == Ghost:
+						if not pacman.hungry:
+							game_over_flag = True
 				obj.draw(screen)
 		pygame.display.update() # Без этого отрисованное не будет отображаться
 		if exit_flag: # Произошло столкновение с призраком
-			print(POINTS, bool(POINTS))
 			break
 		
 		for ghost in GHOSTS:
 			map.direction(ghost, footprint_x, footprint_y)
 			
-		'''os.system('cls') # Очистить консоль
+		# Если необходимо выводить матрицу объектов:
+		'''
+		os.system('cls') # Очистить консоль
 		for y in range(map_size):
 			for x in range(map_size):
 				print(map.get(x,y), end = ' ')
 			print()
-		print("It's Test =", ITS_TEST, POINTS)'''
+		print("It's Test =", ITS_TEST, POINTS)
+		'''
 
 	if game_over_flag:
 		background = pygame.image.load("./resources/game_over.png")
@@ -357,11 +408,8 @@ def main():
 		background = pygame.image.load("./resources/win.png")
 	draw_background(screen, background)
 	pygame.display.update()
-	OBJECTS = []
-	GHOSTS = []
-	POINTS = []
 	pygame.time.delay(500)
-	main() # Рестарт
+	main(map_name) # Рестарт
 
 if __name__ == '__main__': # Если этот файл импортируется в другой, этот __name__ равен имени импортируемого файла без пути и расширения ('pacman'). Если файл запускается непосредственно, __name__  принимает значенние __main__
 	init_window() # Инициализируем окно приложения
