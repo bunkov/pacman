@@ -5,16 +5,12 @@ from __future__ import print_function
 import sys
 import pygame
 from pygame.locals import *
-from math import floor
 import random
 import os
 
 
 tile_size = 32 # Размер клетки игрового поля в пикселях (предполагается, что клетки квадратные)
 map_size = 16 # Размер карты игрового поля в клетках (предполагается, что карта квадратная)
-OBJECTS = []
-GHOSTS = []
-POINTS = []
 ITS_TEST = False
 N = 0 # Кол-во запусков тестового режима
 empty_symbol = ' ' # Символ, которым заполняется карта в пустых ячейках
@@ -45,45 +41,17 @@ class GameObject(pygame.sprite.Sprite):
 		pygame.sprite.Sprite.__init__(self)
 		self.image = pygame.image.load(img) # Загружаем изображение объекта
 		self.tick = 0 # Время, прошедшее с момента создания объекта, в условных единицах
-		self.tile_size = tile_size * floor(factor_tile)
+		self.tile_size = tile_size * int(factor_tile)
 		self.symbol = symbol
 		self.x = x
 		self.y = y
-		OBJECTS.append(self)
 
 	def draw(self, scr):
-		scr.blit(self.image, (floor(self.x) * self.tile_size, floor(self.y) * self.tile_size)) #(self.screen_rect.x, self.screen_rect.y))
-
-	def eraser(self, Map): # Стирает объект на карте
-		if type(self) == Wall: # Стена статична, не отрисовывать ее на карте каждый раз
-			pass
-
-		else:
-			
-			int_x = int(floor(self.x)) # int() - костыль для второго питона
-			int_y = int(floor(self.y))
-			tile = Map.get(int_x, int_y) # Ячейка x, y, в которой был персонаж
-			print(tile, int_x, int_y)
-			tile.remove(self.symbol)
-
-	def pencil(self, Map): # Рисует объект на карте
-		int_x = int(floor(self.x)) # int() - костыль для второго питона
-		int_y = int(floor(self.y))
-
-		tile = Map.get(int_x, int_y) # Ячейка x, y, в которую пришел персонаж
-		
-		if type(self) == Wall:
-			pass
-		
-		else:
-			if empty_symbol in tile:
-				tile[0] = self.symbol # Сменить пустой символ на символ персонажа
-			else:
-				tile.append(self.symbol) # Расширяем список этим персонажем
+		scr.blit(self.image, (int(self.x) * self.tile_size, int(self.y) * self.tile_size)) #(self.screen_rect.x, self.screen_rect.y))
 
 
 class Map:
-	def __init__(self, map_file = None):
+	def __init__(self, OBJECTS, CHARACTERS, POINTS, GHOSTS, map_file = None):
 		self.map = [ [[] for y in range(map_size)] for x in range(map_size) ]
 		if map_file:
 			strings = map_file.readlines()
@@ -91,7 +59,21 @@ class Map:
 				string.rstrip()
 			for y in range(map_size):
 				for x in range(map_size):
-					self.map[x][y].append(strings[y][x])
+					if strings[y][x] == '#':
+						object = Wall(x, y)
+						OBJECTS.append(object)
+					elif strings[y][x] == 'G':
+						object = Ghost(x, y)
+						GHOSTS.append(object)
+					elif strings[y][x] == 'P':
+						object = Pacman(x, y)
+						CHARACTERS.append(object)
+					elif strings[y][x] == 'o':
+						object = Point(x,y)
+						POINTS.append(object)
+					elif strings[y][x] == ' ':
+						object = '<Пустой объект, серьезно!>'
+					self.map[x][y].append(object)
 
 	# Функция возвращает список обьектов в данной точке карты
 	def get(self, x, y):
@@ -100,39 +82,41 @@ class Map:
 	# Обрабатывает столкновения
 	'''Увы, такой подход допускает в редких случаях прохождение двигающихся объектов сквозь друг друга, 
 	но избегает гамовера на границе тайлов (когда призрак и пэкмен стоят не в одной ячейке)'''
-	def collisions(self, obj_1, obj_2):
-		global POINTS
-		for y in range(map_size):
-			for x in range(map_size):
-				tile = self.get(x,y)
-				if obj_1.symbol in tile:
-					if obj_2.symbol in tile: # Конструкция obj_1.symbol and obj_2.symbol не работает
+	def collisions(self, obj_1, obj_2, OBJECTS, POINTS):
+		int_x = int(obj_1.x)
+		int_y = int(obj_1.y)
+		tile = self.get(int_x,int_y)
+		if obj_1 in tile:
+			if obj_2 in tile: # Конструкция obj_1 and obj_2 не работает
 
-						# Столкновение со стеной
-						if type(obj_2) == Wall:
-							obj_1.eraser(self)
-							if obj_1.direction == 1:
-								obj_1.x = floor(obj_1.x) - 1
-								obj_1.direction = 0
-							elif obj_1.direction == 2:
-								obj_1.y = floor(obj_1.y) - 1
-								obj_1.direction = 0
-							elif obj_1.direction == 3:
-								obj_1.x = floor(obj_1.x) + 1
-								obj_1.direction = 0
-							elif obj_1.direction == 4:
-								obj_1.y = floor(obj_1.y) + 1
-								obj_1.direction = 0
-							obj_1.pencil(self)
-						# Столкновение Пэкмена и призрака
-						elif type(obj_1) == Pacman and type(obj_2) == Ghost or type(obj_2) == Pacman and type(obj_1) == Ghost:
-							return True
-						# Пэкмен съедает точку
-						elif type(obj_1) == Pacman and type(obj_2) == Point:
-							print('collisions',tile,obj_2.x,obj_2.y)
-							obj_2.eraser(self)
-							POINTS.remove(obj_2)
-							OBJECTS.remove(obj_2)
+				# Столкновение со стеной
+				if type(obj_2) == Wall:
+					if obj_1.direction == 1:
+						obj_1.x = int_x - 1
+						obj_1.direction = 0
+					elif obj_1.direction == 2:
+						obj_1.y = int_y - 1
+						obj_1.direction = 0
+					elif obj_1.direction == 3:
+						obj_1.x = int_x + 1
+						obj_1.direction = 0
+					elif obj_1.direction == 4:
+						obj_1.y = int_y + 1
+						obj_1.direction = 0
+					new_x = int(obj_1.x)
+					new_y = int(obj_1.y)
+					new_tile = self.get(new_x,new_y)
+					new_tile.append(obj_1)
+					tile.remove(obj_1)
+				# Столкновение Пэкмена и призрака
+				elif type(obj_1) == Pacman and type(obj_2) == Ghost or type(obj_2) == Pacman and type(obj_1) == Ghost:
+					return True
+				# Пэкмен съедает точку
+				elif type(obj_1) == Pacman and type(obj_2) == Point:
+					print('collisions',tile,obj_2.x,obj_2.y)
+					tile.remove(obj_2)
+					POINTS.remove(obj_2)
+					OBJECTS.remove(obj_2)
 
 		if  not POINTS: # Точек не осталось, массив пустой
 			return True
@@ -140,31 +124,33 @@ class Map:
 	def direction(self, ghost, footprint_x, footprint_y):
 		free_way = True
 		# Если призрак на следе, продолжать движение и не менять его направление по-рандому
-		if floor(ghost.x) == footprint_x and floor(ghost.y) == footprint_y:
+		if int(ghost.x) == footprint_x and int(ghost.y) == footprint_y:
 			pass
 		# Цель на линии призрака
-		elif floor(ghost.x) == footprint_x:
+		elif int(ghost.x) == footprint_x:
 			# Проверка на наличие стен
 			lower_edge = int(min(ghost.y, footprint_y))
 			higher_edge = int(max(ghost.y, footprint_y))
 			for y in range(lower_edge, higher_edge):
 				tile = self.get(footprint_x, y)
-				if '#' in tile:
-					free_way = False
+				for obj in tile:
+					if type(obj) == Wall:
+						free_way = False
 			
 			if footprint_y > ghost.y and free_way:
 				ghost.direction = 2
 			elif footprint_y < ghost.y and free_way: # Нельзя допускать равенства, иначе призрак повернет в обратном направлении из-за того, что двигается по следу
 				ghost.direction = 4
 		
-		elif floor(ghost.y) == footprint_y:
+		elif int(ghost.y) == footprint_y:
 
 			lower_edge = int(min(ghost.x, footprint_x))
 			higher_edge = int(max(ghost.x, footprint_x))
 			for x in range(lower_edge, higher_edge):
 				tile = self.get(x, footprint_y)
-				if '#' in tile:
-					free_way = False
+				for obj in tile:
+					if type(obj) == Wall:
+						free_way = False
 			
 			if footprint_x > ghost.x and free_way:
 				ghost.direction = 1
@@ -190,7 +176,6 @@ class Ghost(GameObject):
 		GameObject.__init__(self, './resources/ghost_right.png', x, y, factor_tile, symbol)
 		self.direction = 0 # 0 - неподвижен, 1 - вправо, 2 - вниз, 3 - влево, 4 - вверх
 		self.velocity = 8.0 / 10.0 # Скорость в клетках / игровой тик. Необходимо указывать дробную часть, иначе Питон интерпертирует это как целочисленное деление
-		GHOSTS.append(self)
 
 	def game_tick(self):
 		self.tick += 1
@@ -253,7 +238,6 @@ class Pacman(GameObject):
 class Point(GameObject):
 	def __init__(self, x, y, factor_tile = 1, symbol = 'o'):
 		GameObject.__init__(self, './resources/point.png', x, y, factor_tile, symbol)
-		POINTS.append(self)
 
 # Функция говорит, что делать при определенных событиях, сгенерированных пользователем
 def process_events(events, control_obj):
@@ -294,55 +278,55 @@ def test():
 
 
 def main():
-	global OBJECTS
-	global GHOSTS
-	global POINTS
+	OBJECTS = []
+	GHOSTS = []
+	POINTS = []
+	CHARACTERS = []
 	#map_name = input()
 	map_file = open('maps/2.txt')
-	CHARACTERS = []
 
 	background = pygame.image.load("./resources/background.png") # Загружаем изображение
 	screen = pygame.display.get_surface() # Получаем объект Surface для рисования в окне
 	# Засовывать это в init_window() нельзя: screen требуется для draw персонажей,
 	# и сделать screen глобальным параметром, отделив тем самым от pygame.init(), тоже невозможно
 
-	map = Map(map_file)
-	map_file.close()
-	for y in range(map_size):
-		for x in range(map_size):
-			tile = map.get(x,y)
-			if '#' in tile:
-				Wall(x, y)
-			elif 'G' in tile:
-				Ghost(x, y)
-			elif 'P' in tile:
-				pacman = Pacman(x, y)
-			elif 'o' in tile:
-				Point(x,y)
+	map = Map(OBJECTS, CHARACTERS, POINTS, GHOSTS, map_file)
+	map_file.close
+
 	exit_flag = False
 	game_over_flag = False
 	continue_flag = True
-	CHARACTERS.append(pacman)
+	pacman = CHARACTERS[0]
 	CHARACTERS += GHOSTS
+	OBJECTS += CHARACTERS + POINTS
 
 # В бесконечном цикле принимаем и обрабатываем сообщения
 	while 1:
 		process_events(pygame.event.get(), pacman)
-		footprint_x = floor(pacman.x)
-		footprint_y = floor(pacman.y)
+		footprint_x = int(pacman.x)
+		footprint_y = int(pacman.y)
 
-		pygame.time.delay(50)
+		pygame.time.delay(100)
 		draw_background(screen, background) # Фон перерисовывается поверх устаревших положений персонажей		
 
 		for char in CHARACTERS:
-			char.eraser(map)
+			int_x = int(char.x)
+			int_y = int(char.y)
+			tile = map.get(int_x,int_y)
+			if type(char) == Pacman:
+				print(char.x,char.y)
 			char.game_tick()
-			char.pencil(map)
+			
+			new_x = int(char.x)
+			new_y = int(char.y)
+			new_tile = map.get(new_x,new_y)
+			new_tile.append(char)
+			tile.remove(char)
 
 		# Обработка столкновений
 		for char in CHARACTERS:
 			for obj in OBJECTS:
-				if map.collisions(char, obj) and continue_flag: # Если пэкмен столкнулся с призраком или собрал все точки, и событие не было зафиксировано
+				if map.collisions(char, obj, OBJECTS, POINTS) and continue_flag: # Если пэкмен столкнулся с призраком или собрал все точки, и событие не было зафиксировано
 					exit_flag = True
 					continue_flag = False # Событие зафиксировано, не повторять
 					if type(obj) == Pacman and type(char) == Ghost or type(char) == Pacman and type(obj) == Ghost:
